@@ -93,7 +93,7 @@ static inline void __up_write(struct rw_semaphore *sem)
         // handle waking up a waiter on the semaphore
         rwsem_wake(sem);
 }
-</code></pre><p>在整个第4步的过程中，都处于写锁状态。锁的实现和使用比我想象的要复杂的多，有兴趣可以看看<a href=https://0xax.gitbooks.io/linux-insides/SyncPrim/linux-sync-5.html>Synchronization primitives in the Linux kernel. Part 5</a>, 里面有详细的介绍。但是需要注意的是，该文章里面的内核是旧版的，在操作sem->count时还是platform dependent的。新版的内核（v5.1之后）中增加了atomic_long_sub_return_release等通用函数，减少了对平台的依赖，降低了维护成本。</p><h2 id=copy_from_user>copy_from_user</h2><p>copy_from_user的内核函数应该是setdomainname系统调用的核心，也是一个比较复杂的部分。将用户空间的内存拷贝到相应的内核空间，从而实现"set domain name&rdquo;，中间可能出现种种状况。比如用户空间的虚拟内存缺页的时候怎么办？还有复制内存的时候，传入的用户空间的内存地址/内核空间地址不合法怎么办？关于copy_from_user的内核安全问题，有兴趣的可以看看<a href=https://lwn.net/Articles/781283/>Two topics in user-space access</a>。下面结合内核源码来看看，linux内核是如何处理这些问题的。</p><pre><code class="language-c=" data-lang="c=">
+</code></pre><p>在整个第4步的过程中，都处于写锁状态。锁的实现和使用比我想象的要复杂的多，有兴趣可以看看<a href=https://0xax.gitbooks.io/linux-insides/SyncPrim/linux-sync-5.html>Synchronization primitives in the Linux kernel. Part 5</a>, 里面有详细的介绍。但是需要注意的是，该文章里面的内核是旧版的，在操作sem->count时还是platform dependent的。新版的内核（v5.1之后）中增加了atomic_long_sub_return_release等通用函数，减少了对平台的依赖，降低了维护成本。</p><h2 id=copy_from_user>copy_from_user</h2><p>copy_from_user的内核函数应该是setdomainname系统调用的核心，也是一个比较复杂的部分。将用户空间的内存拷贝到相应的内核空间，从而实现"set domain name"，中间可能出现种种状况。比如用户空间的虚拟内存缺页的时候怎么办？还有复制内存的时候，传入的用户空间的内存地址/内核空间地址不合法怎么办？关于copy_from_user的内核安全问题，有兴趣的可以看看<a href=https://lwn.net/Articles/781283/>Two topics in user-space access</a>。下面结合内核源码来看看，linux内核是如何处理这些问题的。</p><pre><code class="language-c=" data-lang="c=">
 static __always_inline unsigned long __must_check
 copy_from_user(void *to, const void __user *from, unsigned long n)
 {
@@ -211,4 +211,4 @@ struct nsproxy {
 };
 </code></pre><h2 id=summary>Summary</h2><p>好了，到这里基本完成了对setdomainname的系统调用的分析。这次分析之旅比我想象重要长，通过一个系统调用的分析，我学习了linux对读写信号量的具体实现，内核是如何拷贝用户空间的内存到内核空间，以及相关的虚拟化技术（甚至还初步接触了asm volatile等）。沿途还有许多风光，因为时间关系没有仔细深入去研究，比如对锁的获取时的验证，其他虚拟化技术（ipc, mnt, pid 等）。</p><p>第一次分析linux内核源码，给我的整体的印象是严谨，易读。我想之后应该会有更多关于其他系统调用的内核实现分析。</p></div><div class=pagination><a href=/posts/setdomainname/ class="left arrow">&#8592;</a>
 <a href=/posts/exploit/ class="right arrow">&#8594;</a>
-<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-02-25 21:01:38.070358755 +1100 AEDT m=+0.052292168">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
+<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-02-25 10:06:15.314722267 +0000 UTC m=+0.072199032">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
