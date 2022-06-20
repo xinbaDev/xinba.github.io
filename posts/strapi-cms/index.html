@@ -1,0 +1,206 @@
+<!doctype html><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>strapi-cms中deep filtering的问题 &#183; Alex's Blog</title><link rel=stylesheet href=/xinba.github.io/css/style.css><link rel=stylesheet href=/xinba.github.io/css/fonts.css><link rel=icon href=favicon.ico><link rel=icon type=image/png sizes=32x32 href=/xinba.github.io/images/favicon-32x32.png><link rel=icon type=image/png sizes=16x16 href=/xinba.github.io/images/favicon-16x16.png><link rel=apple-touch-icon sizes=180x180 href=/xinba.github.io/images/apple-touch-icon.png><link href rel=alternate type=application/rss+xml title="Alex's Blog"></head><body><nav class=nav><div class=nav-container><a href=/xinba.github.io/><h2 class=nav-title>Alex's Blog</h2></a><ul><li><a href=/xinba.github.io/posts><span>Posts</span></a></li></ul></div></nav><main><div class=post><div class=post-info><span>Written by</span>
+Alex<br><span>on&nbsp;</span><time datetime="2022-05-28 11:12:22 +1100 +1100">May 28, 2022</time></div><h1 class=post-title>strapi-cms中deep filtering的问题</h1><div class=post-line></div><p>最近在研究stapi-cms优化的时候看到console里面一个warning，&ldquo;Deep filtering queries should be used carefully (e.g Can cause performance issues). When possible build custom routes which will in most case be more optimised.&rdquo; 看到这个warning我一开始是一头雾水的，于是打算调查一下。</p><p>看到这个warning, 我首先产生了几个问题：</p><ol><li>什么是deep filtering?</li><li>为什么deep filtering会影响performance, 具体是怎么影响？</li></ol><p>于是先在github上搜索找到相关的issue,也并没有看到特别相关的内容，只看到一个issue#5593提到这个warning, 但是里面也没有具体讨论。然后专门查了一下deep filtering的解释，所谓的deep filtering就是filter中带有relation，在filter时需要join的那种。解释还是比较模糊，于是专门在vscode里搜索关键字Deep filtering，找到warning的定位在strapi-util.js中buildQuery函数中出现。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildQuery</span> <span style=color:#f92672>=</span> ({ <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>filters</span> <span style=color:#f92672>=</span> {}, ...<span style=color:#a6e22e>rest</span> }) =&gt; {
+  <span style=color:#75715e>// Validate query clauses
+</span><span style=color:#75715e></span>  <span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span> <span style=color:#f92672>&amp;&amp;</span> Array.<span style=color:#a6e22e>isArray</span>(<span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span>)) {
+    <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>deepFilters</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span>.<span style=color:#a6e22e>filter</span>(({ <span style=color:#a6e22e>field</span> }) =&gt; <span style=color:#a6e22e>field</span>.<span style=color:#a6e22e>split</span>(<span style=color:#e6db74>&#39;.&#39;</span>).<span style=color:#a6e22e>length</span> <span style=color:#f92672>&gt;</span> <span style=color:#ae81ff>1</span>);
+    <span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>deepFilters</span>.<span style=color:#a6e22e>length</span> <span style=color:#f92672>&gt;</span> <span style=color:#ae81ff>0</span>) {
+      <span style=color:#a6e22e>strapi</span>.<span style=color:#a6e22e>log</span>.<span style=color:#a6e22e>warn</span>(
+        <span style=color:#e6db74>&#39;Deep filtering queries should be used carefully (e.g Can cause performance issues).\nWhen possible build custom routes which will in most case be more optimised.&#39;</span>
+      );
+    }
+
+    <span style=color:#75715e>// cast where clauses to match the inner types
+</span><span style=color:#75715e></span>    <span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span>
+      .<span style=color:#a6e22e>filter</span>(({ <span style=color:#a6e22e>value</span> }) =&gt; <span style=color:#a6e22e>value</span>)
+      .<span style=color:#a6e22e>map</span>(({ <span style=color:#a6e22e>field</span>, <span style=color:#a6e22e>operator</span>, <span style=color:#a6e22e>value</span> }) =&gt; {
+        <span style=color:#66d9ef>const</span> { <span style=color:#a6e22e>model</span><span style=color:#f92672>:</span> <span style=color:#a6e22e>assocModel</span>, <span style=color:#a6e22e>attribute</span> } <span style=color:#f92672>=</span> <span style=color:#a6e22e>getAssociationFromFieldKey</span>({
+          <span style=color:#a6e22e>model</span>,
+          <span style=color:#a6e22e>field</span>,
+        });
+
+        <span style=color:#66d9ef>const</span> { <span style=color:#a6e22e>type</span> } <span style=color:#f92672>=</span> <span style=color:#a6e22e>_</span>.<span style=color:#a6e22e>get</span>(<span style=color:#a6e22e>assocModel</span>, [<span style=color:#e6db74>&#39;attributes&#39;</span>, <span style=color:#a6e22e>attribute</span>], {});
+        <span style=color:#66d9ef>return</span> { <span style=color:#a6e22e>field</span>, <span style=color:#a6e22e>operator</span>, <span style=color:#a6e22e>value</span><span style=color:#f92672>:</span> <span style=color:#a6e22e>castValueToType</span>({ <span style=color:#a6e22e>type</span>, <span style=color:#a6e22e>value</span> }) };
+      });
+  }
+
+  <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>orm</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>strapi</span>.<span style=color:#a6e22e>hook</span>[<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>orm</span>];
+
+  <span style=color:#75715e>// call the orm&#39;s buildQuery implementation
+</span><span style=color:#75715e></span>  <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>orm</span>.<span style=color:#a6e22e>load</span>().<span style=color:#a6e22e>buildQuery</span>({ <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>filters</span>, ...<span style=color:#a6e22e>rest</span> });
+};
+</code></pre></div><p>通过这段函数就可以发现，在strapi-cms中deep filter就是filters.where里面field有点号分隔的字段的情况。函数之后会处理filters.where，通过getAssociationFromFieldKey这个函数找到相关的model，最后调用orm中的buildQuery函数。看到这里依然不清楚为什么deep filtering会影响performace以至于写这段代码的dev特意写一个warning。于是继续看下去，去查看strapi-cms中的调用的orm的代码。在strapi-cms使用的是bookshelf这个orm, 具体的代码在strapi-hook-bookshelf这个package中。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#75715e>/**
+</span><span style=color:#75715e> * Build filters on a bookshelf query
+</span><span style=color:#75715e> * @param {Object} options - Options
+</span><span style=color:#75715e> * @param {Object} options.model - Bookshelf model
+</span><span style=color:#75715e> * @param {Object} options.filters - Filters params (start, limit, sort, where)
+</span><span style=color:#75715e> */</span>
+<span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildQuery</span> <span style=color:#f92672>=</span> ({ <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>filters</span> }) =&gt; <span style=color:#a6e22e>qb</span> =&gt; {
+  <span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>_</span>.<span style=color:#a6e22e>has</span>(<span style=color:#a6e22e>filters</span>, <span style=color:#e6db74>&#39;where&#39;</span>) <span style=color:#f92672>&amp;&amp;</span> Array.<span style=color:#a6e22e>isArray</span>(<span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span>)) {
+    <span style=color:#a6e22e>qb</span>.<span style=color:#a6e22e>distinct</span>();
+    <span style=color:#a6e22e>buildJoinsAndFilter</span>(<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>filters</span>.<span style=color:#a6e22e>where</span>);
+  }
+  ...
+};
+
+<span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildJoinsAndFilter</span> <span style=color:#f92672>=</span> (<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>whereClauses</span>) =&gt; {
+
+  ...
+  <span style=color:#75715e>/**
+</span><span style=color:#75715e>   * Build a query joins and where clauses from a query tree
+</span><span style=color:#75715e>   * @param {Object} qb - Knex query builder
+</span><span style=color:#75715e>   * @param {Object} tree - Query tree
+</span><span style=color:#75715e>   */</span>
+  <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildQueryFromTree</span> <span style=color:#f92672>=</span> (<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>queryTree</span>) =&gt; {
+    <span style=color:#75715e>// build joins
+</span><span style=color:#75715e></span>    Object.<span style=color:#a6e22e>keys</span>(<span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>children</span>).<span style=color:#a6e22e>forEach</span>(<span style=color:#a6e22e>key</span> =&gt; {
+      <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>subQueryTree</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>children</span>[<span style=color:#a6e22e>key</span>];
+      <span style=color:#a6e22e>buildJoin</span>(<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>subQueryTree</span>.<span style=color:#a6e22e>assoc</span>, <span style=color:#a6e22e>queryTree</span>, <span style=color:#a6e22e>subQueryTree</span>);
+
+      <span style=color:#a6e22e>buildQueryFromTree</span>(<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>subQueryTree</span>);
+    });
+
+    <span style=color:#75715e>// build where clauses
+</span><span style=color:#75715e></span>    <span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>where</span>.<span style=color:#a6e22e>forEach</span>(<span style=color:#a6e22e>w</span> =&gt; <span style=color:#a6e22e>buildWhereClause</span>({ <span style=color:#a6e22e>qb</span>, ...<span style=color:#a6e22e>w</span> }));
+  };
+
+  <span style=color:#75715e>/**
+</span><span style=color:#75715e>   * Add table joins
+</span><span style=color:#75715e>   * @param {Object} qb - Knex query builder
+</span><span style=color:#75715e>   * @param {Object} assoc - Models association info
+</span><span style=color:#75715e>   * @param {Object} originInfo - origin from which you are making a join
+</span><span style=color:#75715e>   * @param {Object} destinationInfo - destination with which we are making a join
+</span><span style=color:#75715e>   */</span>
+  <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildJoin</span> <span style=color:#f92672>=</span> (<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>assoc</span>, <span style=color:#a6e22e>originInfo</span>, <span style=color:#a6e22e>destinationInfo</span>) =&gt; {
+    <span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>nature</span> <span style=color:#f92672>===</span> <span style=color:#e6db74>&#39;manyToMany&#39;</span>) {
+      <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>joinTableAlias</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>generateAlias</span>(<span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>tableCollectionName</span>);
+
+      <span style=color:#a6e22e>qb</span>.<span style=color:#a6e22e>leftJoin</span>(
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>databaseName</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>tableCollectionName</span><span style=color:#e6db74>}</span><span style=color:#e6db74> AS </span><span style=color:#e6db74>${</span><span style=color:#a6e22e>joinTableAlias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>joinTableAlias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>singular</span>(<span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>globalId</span>.<span style=color:#a6e22e>toLowerCase</span>())<span style=color:#e6db74>}</span><span style=color:#e6db74>_</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>attributes</span>[<span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>alias</span>].<span style=color:#a6e22e>column</span>
+        <span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>primaryKey</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>
+      );
+
+      <span style=color:#a6e22e>qb</span>.<span style=color:#a6e22e>leftJoin</span>(
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>databaseName</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>collectionName</span><span style=color:#e6db74>}</span><span style=color:#e6db74> AS </span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>joinTableAlias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>singular</span>(<span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>globalId</span>.<span style=color:#a6e22e>toLowerCase</span>())<span style=color:#e6db74>}</span><span style=color:#e6db74>_</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>primaryKey</span>
+        <span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+        <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>primaryKey</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>
+      );
+      <span style=color:#66d9ef>return</span>;
+    }
+
+    <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>externalKey</span> <span style=color:#f92672>=</span>
+      <span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>type</span> <span style=color:#f92672>===</span> <span style=color:#e6db74>&#39;collection&#39;</span>
+        <span style=color:#f92672>?</span> <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>via</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>
+        <span style=color:#f92672>:</span> <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>primaryKey</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>;
+
+    <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>internalKey</span> <span style=color:#f92672>=</span>
+      <span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>type</span> <span style=color:#f92672>===</span> <span style=color:#e6db74>&#39;collection&#39;</span>
+        <span style=color:#f92672>?</span> <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>primaryKey</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>
+        <span style=color:#f92672>:</span> <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>originInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>assoc</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>;
+
+    <span style=color:#a6e22e>qb</span>.<span style=color:#a6e22e>leftJoin</span>(
+      <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>databaseName</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>collectionName</span><span style=color:#e6db74>}</span><span style=color:#e6db74> AS </span><span style=color:#e6db74>${</span><span style=color:#a6e22e>destinationInfo</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+      <span style=color:#a6e22e>externalKey</span>,
+      <span style=color:#a6e22e>internalKey</span>
+    );
+  };
+
+  ...
+
+  <span style=color:#75715e>/**
+</span><span style=color:#75715e>   * Builds a Strapi query tree easy
+</span><span style=color:#75715e>   * @param {Array&lt;Object&gt;} whereClauses - Array of Strapi where clause
+</span><span style=color:#75715e>   * @param {Object} model - Strapi model
+</span><span style=color:#75715e>   * @param {Object} queryTree - queryTree
+</span><span style=color:#75715e>   */</span>
+  <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>buildQueryTree</span> <span style=color:#f92672>=</span> (<span style=color:#a6e22e>whereClauses</span>, <span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>queryTree</span>) =&gt; {
+    <span style=color:#66d9ef>for</span> (<span style=color:#66d9ef>let</span> <span style=color:#a6e22e>whereClause</span> <span style=color:#66d9ef>of</span> <span style=color:#a6e22e>whereClauses</span>) {
+      <span style=color:#66d9ef>const</span> { <span style=color:#a6e22e>field</span>, <span style=color:#a6e22e>operator</span>, <span style=color:#a6e22e>value</span> } <span style=color:#f92672>=</span> <span style=color:#a6e22e>whereClause</span>;
+      <span style=color:#75715e>// console.log(&#34;field:&#34; + field)
+</span><span style=color:#75715e></span>      <span style=color:#66d9ef>let</span> [<span style=color:#a6e22e>key</span>, ...<span style=color:#a6e22e>parts</span>] <span style=color:#f92672>=</span> <span style=color:#a6e22e>field</span>.<span style=color:#a6e22e>split</span>(<span style=color:#e6db74>&#39;.&#39;</span>);
+      <span style=color:#75715e>// console.log(&#34;key:&#34; + key)
+</span><span style=color:#75715e></span>      <span style=color:#75715e>// console.log(parts)
+</span><span style=color:#75715e></span>
+      <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>assoc</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>findAssoc</span>(<span style=color:#a6e22e>model</span>, <span style=color:#a6e22e>key</span>);
+
+      <span style=color:#75715e>// if the key is an attribute add as where clause
+</span><span style=color:#75715e></span>      <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span><span style=color:#a6e22e>assoc</span>) {
+        <span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>where</span>.<span style=color:#a6e22e>push</span>({
+          <span style=color:#a6e22e>field</span><span style=color:#f92672>:</span> <span style=color:#e6db74>`</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>alias</span><span style=color:#e6db74>}</span><span style=color:#e6db74>.</span><span style=color:#e6db74>${</span><span style=color:#a6e22e>key</span><span style=color:#e6db74>}</span><span style=color:#e6db74>`</span>,
+          <span style=color:#a6e22e>operator</span>,
+          <span style=color:#a6e22e>value</span>,
+        });
+        <span style=color:#66d9ef>continue</span>;
+      }
+
+      <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>assocModel</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>findModelByAssoc</span>(<span style=color:#a6e22e>assoc</span>);
+
+      <span style=color:#75715e>// if the last part of the path is an association
+</span><span style=color:#75715e></span>      <span style=color:#75715e>// add the primary key of the model to the parts
+</span><span style=color:#75715e></span>      <span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>parts</span>.<span style=color:#a6e22e>length</span> <span style=color:#f92672>===</span> <span style=color:#ae81ff>0</span>) {
+        <span style=color:#a6e22e>parts</span> <span style=color:#f92672>=</span> [<span style=color:#a6e22e>assocModel</span>.<span style=color:#a6e22e>primaryKey</span>];
+      }
+
+      <span style=color:#75715e>// init sub query tree
+</span><span style=color:#75715e></span>      <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span><span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>children</span>[<span style=color:#a6e22e>key</span>]) {
+        <span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>children</span>[<span style=color:#a6e22e>key</span>] <span style=color:#f92672>=</span> <span style=color:#a6e22e>createTreeNode</span>(<span style=color:#a6e22e>assocModel</span>, <span style=color:#a6e22e>assoc</span>);
+      }
+
+      <span style=color:#a6e22e>buildQueryTree</span>(
+        [
+          {
+            <span style=color:#a6e22e>field</span><span style=color:#f92672>:</span> <span style=color:#a6e22e>parts</span>.<span style=color:#a6e22e>join</span>(<span style=color:#e6db74>&#39;.&#39;</span>),
+            <span style=color:#a6e22e>operator</span>,
+            <span style=color:#a6e22e>value</span>,
+          },
+        ],
+        <span style=color:#a6e22e>assocModel</span>,
+        <span style=color:#a6e22e>queryTree</span>.<span style=color:#a6e22e>children</span>[<span style=color:#a6e22e>key</span>]
+      );
+    }
+
+    <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>queryTree</span>;
+  };
+
+  <span style=color:#66d9ef>const</span> <span style=color:#a6e22e>root</span> <span style=color:#f92672>=</span> <span style=color:#a6e22e>buildQueryTree</span>(<span style=color:#a6e22e>whereClauses</span>, <span style=color:#a6e22e>model</span>, {
+    <span style=color:#a6e22e>alias</span><span style=color:#f92672>:</span> <span style=color:#a6e22e>model</span>.<span style=color:#a6e22e>collectionName</span>,
+    <span style=color:#a6e22e>assoc</span><span style=color:#f92672>:</span> <span style=color:#66d9ef>null</span>,
+    <span style=color:#a6e22e>model</span>,
+    <span style=color:#a6e22e>where</span><span style=color:#f92672>:</span> [],
+    <span style=color:#a6e22e>children</span><span style=color:#f92672>:</span> {},
+  });
+
+  <span style=color:#66d9ef>return</span> <span style=color:#a6e22e>buildQueryFromTree</span>(<span style=color:#a6e22e>qb</span>, <span style=color:#a6e22e>root</span>);
+};
+
+</code></pre></div><p>可以看到在这个函数的主要逻辑是先构建一个query tree，如果deep filtering越深（parts越多）树就越深，然后通过这个tree再去构建query。在构建query的过程中用到了递归，而且还有for循环里面的递归。递归的最后是buildJoin里面调用knex的query builder去构建sql query。knex是构建底层sql query的库，可以看到在buildJoin中对knew的调用用到了left join, 而且在manytomany的relation中会调用两次。left join是比较吃资源的query, 尤其是连接的表比较大的时候。目测这就是deep filtering会影响performance的主要原因。</p><p>下面用一个具体的例子来分析一下deep filtering， 以下是会触发warning的graphql query:</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#a6e22e>ads</span> (<span style=color:#a6e22e>where</span><span style=color:#f92672>:</span> { <span style=color:#a6e22e>tags</span><span style=color:#f92672>:</span> { <span style=color:#a6e22e>name</span><span style=color:#f92672>:</span> <span style=color:#e6db74>&#34;XXX&#34;</span> } } ) {
+    <span style=color:#a6e22e>name</span>
+    <span style=color:#a6e22e>imgs</span> {
+        <span style=color:#a6e22e>url</span>
+    }
+    <span style=color:#a6e22e>is_active</span>
+    <span style=color:#a6e22e>link</span>
+    <span style=color:#a6e22e>lang</span>
+    <span style=color:#a6e22e>html</span>
+}
+</code></pre></div><p>strapi-cms会将ads后面的where条件parse成以下的filter:</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js>{
+  <span style=color:#a6e22e>start</span><span style=color:#f92672>:</span> <span style=color:#ae81ff>0</span>,
+  <span style=color:#a6e22e>limit</span><span style=color:#f92672>:</span> <span style=color:#ae81ff>100</span>,
+  <span style=color:#a6e22e>where</span><span style=color:#f92672>:</span> [ { <span style=color:#a6e22e>field</span><span style=color:#f92672>:</span> <span style=color:#e6db74>&#39;tags.name&#39;</span>, <span style=color:#a6e22e>operator</span><span style=color:#f92672>:</span> <span style=color:#e6db74>&#39;eq&#39;</span>, <span style=color:#a6e22e>value</span><span style=color:#f92672>:</span> <span style=color:#e6db74>&#39;XXX&#39;</span> } ]
+}
+</code></pre></div><p>这里的field在buildQuery中会被split成 key = tags, parts = name, 然后会递归调用生成子树。</p><p>而如果换一个query:</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-js data-lang=js><span style=color:#a6e22e>adtags</span> (<span style=color:#a6e22e>where</span><span style=color:#f92672>:</span> { <span style=color:#a6e22e>name</span><span style=color:#f92672>:</span> <span style=color:#e6db74>&#34;XXX&#34;</span> }) {
+    <span style=color:#a6e22e>ads</span> {
+        <span style=color:#a6e22e>name</span>
+        <span style=color:#a6e22e>imgs</span> {
+        <span style=color:#a6e22e>url</span>
+        }
+        <span style=color:#a6e22e>is_active</span>
+        <span style=color:#a6e22e>link</span>
+        <span style=color:#a6e22e>lang</span>
+        <span style=color:#a6e22e>html</span>
+    }
+}
+</code></pre></div><p>这个query也可以拿到所需要的资料，不同的是在buildQuery的时候就不会产生deep filtering的情况，一部分计算量被移到loader进行处理。其实本质上就是把原来一个复杂的query变成多个简单的query。这种有利有弊，并不是哪一种就更好，还是要看具体情况。我认为一般来说第一种都比第二种要好，因为较少的query次数，而且不需要在app端在重新整合数据。但是有时候deep filter太深太复杂，也会给db造成很大的压力。在某些情况下，比如需要连接的表特别大，而且在可以先filter这个表的情况下，第二种分开打query的方式就更好，因为可以提前filter掉一些无用的数据。这样db压力就会小很多，等于是让app来多分担一些db的计算。所以具体哪一种更好还是要看具体的query以及表的情况。</p><p>总而言之，因为数据库的设计多变，而且里面涉及各种表，情况千变万化，orm的框架很难照顾的面面具到，只能考虑一般的情况，尽可能适配，所以效能往往不是最优的。其实不只是框架，凡是复杂一些，应用场景比较多的软件都会有这种取舍。比如nginx，作为一个广泛使用的服务器就被用到了各种场景，nginx也是优化非常好的一个程序。但是依旧有许多nginx的改版以适应不同的场景，比如淘宝就专门开发过一个Tengine，以更好的服务高并发的需要。</p></div><div class=pagination><a href=/xinba.github.io/posts/grapqlloader/ class="left arrow">&#8592;</a>
+<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-06-20 11:24:35.925774333 +0000 UTC m=+0.172116339">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
