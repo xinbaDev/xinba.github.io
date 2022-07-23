@@ -211,4 +211,4 @@ struct nsproxy {
 };
 </code></pre><h2 id=summary>Summary</h2><p>好了，到这里基本完成了对setdomainname的系统调用的分析。这次分析之旅比我想象重要长，通过一个系统调用的分析，我学习了linux对读写信号量的具体实现，内核是如何拷贝用户空间的内存到内核空间，以及相关的虚拟化技术（甚至还初步接触了asm volatile等）。沿途还有许多风光，因为时间关系没有仔细深入去研究，比如对锁的获取时的验证，其他虚拟化技术（ipc, mnt, pid 等）。</p><p>第一次分析linux内核源码，给我的整体的印象是严谨，易读。我想之后应该会有更多关于其他系统调用的内核实现分析。</p></div><div class=pagination><a href=/xinba.github.io/posts/setdomainname/ class="left arrow">&#8592;</a>
 <a href=/xinba.github.io/posts/exploit/ class="right arrow">&#8594;</a>
-<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-07-15 11:06:30.749823789 +0000 UTC m=+0.161609439">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
+<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-07-23 01:42:18.152687298 +0000 UTC m=+0.185284259">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
