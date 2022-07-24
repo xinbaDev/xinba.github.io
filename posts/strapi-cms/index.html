@@ -203,5 +203,5 @@ Alex<br><span>on&nbsp;</span><time datetime="2022-05-28 11:12:22 +1100 +1100">Ma
     }
 }
 </code></pre></div><p>这个query也可以拿到所需要的资料，不同的是在buildQuery的时候就不会产生deep filtering的情况，一部分计算量被移到loader进行处理。其实本质上就是把原来一个复杂的query变成多个简单的query。这种有利有弊，并不是哪一种就更好，还是要看具体情况。我认为一般来说第一种都比第二种要好，因为较少的query次数，而且不需要在app端在重新整合数据。但是有时候deep filter太深太复杂，也会给db造成很大的压力。在某些情况下，比如需要连接的表特别大，而且在可以先filter这个表的情况下，第二种分开打query的方式就更好，因为可以提前filter掉一些无用的数据。这样db压力就会小很多，等于是让app来多分担一些db的计算。所以具体哪一种更好还是要看具体的query以及表的情况。</p><p>总而言之，因为数据库的设计多变，而且里面涉及各种表，情况千变万化，orm的框架很难照顾的面面具到，只能考虑一般的情况，尽可能适配，所以效能往往不是最优的。其实不只是框架，凡是复杂一些，应用场景比较多的软件都会有这种取舍。比如nginx，作为一个广泛使用的服务器就被用到了各种场景，nginx也是优化非常好的一个程序。但是依旧有许多nginx的改版以适应不同的场景，比如淘宝就专门开发过一个Tengine，以更好的服务高并发的需要。</p></div><div class=pagination><a href=/xinba.github.io/posts/grapqlloader/ class="left arrow">&#8592;</a>
-<a href=/xinba.github.io/posts/cloudflare/ class="right arrow">&#8594;</a>
-<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-07-23 01:42:18.160711723 +0000 UTC m=+0.193308684">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
+<a href=/xinba.github.io/posts/forta/ class="right arrow">&#8594;</a>
+<a href=# class=top>Top</a></div></main><footer><span>&copy; <time datetime="2022-07-24 02:08:51.359346401 +0000 UTC m=+0.143905173">2022</time> Alex. Made with <a href=https://gohugo.io>Hugo</a> using the <a href=https://github.com/EmielH/tale-hugo/>Tale</a> theme.</span></footer></body></html>
